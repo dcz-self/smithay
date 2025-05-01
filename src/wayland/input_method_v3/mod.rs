@@ -117,11 +117,11 @@ pub trait InputMethodHandler {
 /// Extends [Seat] with input method functionality
 pub trait InputMethodSeat {
     /// Get an input method associated with this seat
-    fn input_method(&self) -> &InputMethodHandle;
+    fn input_method_v3(&self) -> &InputMethodHandle;
 }
 
 impl<D: SeatHandler + 'static> InputMethodSeat for Seat<D> {
-    fn input_method(&self) -> &InputMethodHandle {
+    fn input_method_v3(&self) -> &InputMethodHandle {
         let user_data = self.user_data();
         user_data.insert_if_missing(InputMethodHandle::default);
         user_data.get::<InputMethodHandle>().unwrap()
