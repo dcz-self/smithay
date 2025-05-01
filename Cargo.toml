@@ -142,3 +142,14 @@ harness = false
 [profile.release-with-debug]
 inherits = "release"
 debug = true
+
+[patch.crates-io]
+wayland-client = { path="../wayland-rs/wayland-client",  version = "0.31.8", optional = true }
+wayland-cursor = { path="../wayland-rs/wayland-cursor",  version = "0.31.8", optional = true }
+wayland-egl = { path="../wayland-rs/wayland-egl",  version = "0.32.5", optional = true }
+wayland-protocols = { path="../wayland-rs/wayland-protocols",  version = "0.32.6", features = ["unstable", "staging", "server"], optional = true }
+wayland-protocols-wlr = { path="../wayland-rs/wayland-protocols-wlr",  version = "0.3.6", features = ["server"], optional = true }
+wayland-protocols-misc = { path="../wayland-rs/wayland-protocols-misc",  version = "0.3.6", features = ["server"], optional = true }
+wayland-server = { path="../wayland-rs/wayland-server",  version = "0.31.7", optional = true }
+wayland-sys = { path="../wayland-rs/wayland-sys",  version = "0.31.6", optional = true }
+wayland-backend = { path="../wayland-rs/wayland-backend",  version = "0.3.8", optional = true }
