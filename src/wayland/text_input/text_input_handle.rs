@@ -259,6 +259,7 @@ where
                 pending_state.cursor_rectangle = Some(Rectangle::new((x, y).into(), (width, height).into()));
             }
             zwp_text_input_v3::Request::Commit => {
+	    dbg!("text input committed");
                 let mut new_state = mem::take(pending_state);
                 let _ = pending_state;
                 let active_text_input_id = &mut guard.active_text_input_id;

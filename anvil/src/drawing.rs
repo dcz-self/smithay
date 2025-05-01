@@ -4,6 +4,7 @@ use smithay::{
     backend::renderer::{
         element::{
             memory::{MemoryRenderBuffer, MemoryRenderBufferRenderElement},
+            solid::{SolidColorBuffer, SolidColorRenderElement},
             surface::WaylandSurfaceRenderElement,
             AsRenderElements, Kind,
         },
@@ -252,5 +253,27 @@ where
         }
 
         Ok(())
+    }
+}
+
+/// Overlays semi-transparent solid color over selected area
+struct RectangleHighlight {
+    pub overlay: SolidColorBuffer,
+}
+
+impl<R: Renderer> AsRenderElements<R> for RectangleHighlight {
+    type RenderElement = SolidColorRenderElement;
+
+    fn render_elements<C: From<Self::RenderElement>>(
+        &self,
+        _renderer: &mut R,
+        location: Point<i32, smithay::utils::Physical>,
+        scale: smithay::utils::Scale<f64>,
+        alpha: f32,
+    ) -> Vec<C> {
+        vec![
+            SolidColorRenderElement::from_buffer(&self.overlay, location, scale, alpha, Kind::Unspecified)
+                .into(),
+        ]
     }
 }
