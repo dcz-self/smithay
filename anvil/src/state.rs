@@ -667,6 +667,7 @@ impl<BackendData: Backend + 'static> AnvilState<BackendData> {
         let commit_timing_manager_state = CommitTimingManagerState::new::<Self>(&dh);
         TextInputManagerState::new::<Self>(&dh);
         InputMethodManagerState::new::<Self, _>(&dh, |_client| true);
+        InputMethodManagerStateV3::new::<Self, _>(&dh, |_client| true);
         VirtualKeyboardManagerState::new::<Self, _>(&dh, |_client| true);
         // Expose global only if backend supports relative motion events
         if BackendData::HAS_RELATIVE_MOTION {

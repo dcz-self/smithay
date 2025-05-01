@@ -10,7 +10,7 @@ use wayland_server::{protocol::wl_surface::WlSurface, Dispatch, Resource};
 
 use crate::input::SeatHandler;
 use crate::utils::{Logical, Rectangle};
-use crate::wayland::input_method::InputMethodHandle;
+use crate::wayland::input_method_v3::InputMethodHandle;
 
 use super::TextInputManagerState;
 
