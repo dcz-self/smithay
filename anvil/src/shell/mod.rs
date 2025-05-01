@@ -349,6 +349,10 @@ fn ensure_initial_configure(surface: &WlSurface, space: &Space<WindowElement>, p
             PopupKind::InputMethod(ref _input_popup) => {
                 return;
             }
+            // Doesn't require configure
+            PopupKind::InputMethodV3(ref _input_popup) => {
+                return;
+            }
         };
 
         if !popup.is_initial_configure_sent() {
