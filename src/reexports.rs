@@ -24,6 +24,8 @@ pub use wayland_protocols_misc;
 pub use wayland_protocols_wlr;
 #[cfg(feature = "wayland_frontend")]
 pub use wayland_server;
+#[cfg(feature = "wayland_frontend")]
+pub use wl_input_method;
 #[cfg(feature = "backend_winit")]
 pub use winit;
 #[cfg(feature = "x11rb_event_source")]

@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use wayland_protocols::wp::input_method::xx::server::xx_input_popup_surface_v2::{
+use wl_input_method::input_method::xx::server::xx_input_popup_surface_v2::{
     self, XxInputPopupSurfaceV2,
 };
 use wayland_server::{backend::ClientId, protocol::wl_surface::WlSurface, Dispatch, Resource};
@@ -11,7 +11,7 @@ use crate::utils::{
 };
 
 
-use wayland_protocols::wp::input_method::xx::server::xx_input_popup_surface_v2::{
+use wl_input_method::input_method::xx::server::xx_input_popup_surface_v2::{
     self as zwp_input_popup_surface_v2, XxInputPopupSurfaceV2 as ZwpInputPopupSurfaceV2,
 };
 

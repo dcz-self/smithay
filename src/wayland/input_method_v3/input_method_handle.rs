@@ -4,7 +4,7 @@ use std::{
 };
 
 use tracing::warn;
-use wayland_protocols::wp::input_method::xx::server::{
+use wl_input_method::input_method::xx::server::{
     xx_input_method_v1::{self, XxInputMethodV1},
     xx_input_popup_surface_v2::XxInputPopupSurfaceV2,
 };
@@ -26,7 +26,7 @@ use super::{
 };
 
 // for easier copy-paste
-use wayland_protocols::wp::input_method::xx::server::{
+use wl_input_method::input_method::xx::server::{
     xx_input_method_v1::{self as zwp_input_method_v2, XxInputMethodV1 as ZwpInputMethodV2},
     xx_input_popup_surface_v2::{XxInputPopupSurfaceV2 as ZwpInputPopupSurfaceV2},
 };
