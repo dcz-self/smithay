@@ -24,32 +24,37 @@ pub struct PopupHandle {
     pub rectangle: Rectangle<i32, Logical>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ImPopupLocation {
+    /// Area of text that should not be covered, relative to parent
+    pub cursor: Rectangle<i32, Logical>,
+    /// Location of the popup surface relative to parent.
+    pub location: Point<i32, Logical>,
+}
+
 /// A handle to an input method popup surface
 #[derive(Debug, Clone)]
 pub struct PopupSurface {
     /// The surface role for the input method popup
     pub surface_role: ZwpInputPopupSurfaceV2,
     surface: WlSurface,
-    /// Protected cursor area.
-    pub(crate) rectangle: Arc<Mutex<Rectangle<i32, Logical>>>,
-    /// Location of the popup surface.
-    location: Arc<Mutex<Point<i32, Logical>>>,
+    /// Positioning information. None if popup not mapped.
+    position: Arc<Mutex<Option<ImPopupLocation>>>,
     /// Current parent of the IME popup.
+    /// A popup may have a parent without a position while it's waiting for `set_cursor_rectangle`.
     parent: Option<PopupParent>,
 }
 
 impl PopupSurface {
+    /// Creates a new unmapped popup surface
     pub(crate) fn new(
         surface_role: ZwpInputPopupSurfaceV2,
         surface: WlSurface,
-        rectangle: Arc<Mutex<Rectangle<i32, Logical>>>,
         parent: Option<PopupParent>,
     ) -> Self {
-        let location = Arc::new(Mutex::new(rectangle.lock().unwrap().loc));
         Self {
             surface_role,
-            rectangle,
-            location,
+            position: Arc::new(Mutex::new(None)),
             surface,
             parent,
         }
@@ -80,35 +85,31 @@ impl PopupSurface {
     }
 
     /// Used to access the location of an input popup surface relative to the parent
-    pub fn location(&self) -> Point<i32, Logical> {
-        *self.location.lock().unwrap()
-    }
-
-    /// Set location of the popup surface relative to the parent. The primary use for this function
-    /// is to adjust the popup during rendering.
-    ///
-    /// Setting this value **won't update** the [`text_input_rectangle`].
-    ///
-    /// [`text_input_rectangle`]: Self::text_input_rectangle
-    pub fn set_location(&self, location: Point<i32, Logical>) {
-        *self.location.lock().unwrap() = location;
+    pub fn location(&self) -> Option<Point<i32, Logical>> {
+        //self.position.as_ref().map(|p| p.lock().unwrap().location)
+        self.position.lock().unwrap().as_ref().map(|p| p.location)
     }
 
     /// The region compositor shouldn't obscure when placing the popup within the
     /// client.
-    pub fn text_input_rectangle(&self) -> Rectangle<i32, Logical> {
-        *self.rectangle.lock().unwrap()
+    pub fn cursor_rectangle(&self) -> Option<Rectangle<i32, Logical>> {
+        self.position.lock().unwrap().as_ref().map(|p| p.cursor)
     }
 
-    /// Set relative location of text cursor.
+    /// Set position information that should take effect when mapping.
     ///
-    /// Setting this value **will update** the [`location`] to the new `x` and `y`.
-    ///
-    /// [`location`]: Self::location
-    pub fn set_text_input_rectangle(&mut self, x: i32, y: i32, width: i32, height: i32) {
-        *self.rectangle.lock().unwrap() = Rectangle::new((x, y).into(), (width, height).into());
-        *self.location.lock().unwrap() = (x, y + height).into();
-        self.surface_role.text_input_rectangle(x, y, width, height);
+    /// This issues the `text_input_rectangle` event on the popup object.
+    pub fn set_position(&mut self, position: Option<ImPopupLocation>) {
+        if let Some(ImPopupLocation { cursor, location }) = &position {
+            let relative_to_popup = cursor.loc - *location;
+            self.surface_role.text_input_rectangle(
+                relative_to_popup.x,
+                relative_to_popup.y,
+                cursor.size.w,
+                cursor.size.h,
+            );
+        }
+        *self.position.lock().unwrap() = position;
     }
 }
 

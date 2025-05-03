@@ -110,6 +110,9 @@ pub trait InputMethodHandler {
     /// Popup location has changed.
     fn popup_repositioned(&mut self, surface: PopupSurface);
 
+    /// Returns popup geometry relative to parent (?)
+    fn popup_geometry(&self, parent: &WlSurface, cursor: &Rectangle<i32, Logical>) -> Rectangle<i32, Logical>;
+    
     /// Sets the parent location so the popup surface can be placed correctly
     fn parent_geometry(&self, parent: &WlSurface) -> Rectangle<i32, Logical>;
 }
@@ -222,7 +225,8 @@ where
                     InputMethodUserData {
                         handle: handle.clone(),
                         text_input_handle: text_input_handle.clone(),
-                        popup_geometry_callback: D::parent_geometry,
+                        parent_geometry: D::parent_geometry,
+                        popup_geometry_callback: D::popup_geometry,
                         popup_repositioned: D::popup_repositioned,
                         new_popup: D::new_popup,
                         dismiss_popup: D::dismiss_popup,

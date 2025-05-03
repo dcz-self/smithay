@@ -20,7 +20,7 @@ use crate::{
 };
 
 use super::{
-    input_method_popup_surface::{PopupHandle, PopupParent, PopupSurface},
+    input_method_popup_surface::{ImPopupLocation, PopupHandle, PopupParent, PopupSurface},
     InputMethodHandler, InputMethodManagerState,
     InputMethodPopupSurfaceUserData, INPUT_POPUP_SURFACE_ROLE,
 };
@@ -96,23 +96,30 @@ impl InputMethodHandle {
         f(&mut inner);
     }
 
-    pub(crate) fn set_text_input_rectangle<D: SeatHandler + 'static>(
+    pub(crate) fn set_cursor_rectangle<D: SeatHandler + 'static>(
         &self,
         state: &mut D,
-        rect: Rectangle<i32, Logical>,
+        cursor: Rectangle<i32, Logical>,
     ) {
         let mut inner = self.inner.lock().unwrap();
-        inner.popup_handle.rectangle = rect;
+        inner.popup_handle.rectangle = cursor;
 
         let mut popup_surface = match inner.popup_handle.surface.clone() {
             Some(popup_surface) => popup_surface,
             None => return,
         };
 
-        popup_surface.set_text_input_rectangle(rect.loc.x, rect.loc.y, rect.size.w, rect.size.h);
-
+        // When is there no instance? If the input mthod is gone, then the popup should be done too, so this seems redundant.
         if let Some(instance) = &inner.instance {
             let data = instance.object.data::<InputMethodUserData<D>>().unwrap();
+            let popup_geometry = (data.popup_geometry_callback)(state, popup_surface.wl_surface(), &cursor);
+            
+            popup_surface.set_position(Some(ImPopupLocation {
+                cursor,
+                // TODO: store the whole geometry, including size?
+                location: popup_geometry.loc,
+            }));
+            
             (data.popup_repositioned)(state, popup_surface);
         };
     }
@@ -124,7 +131,7 @@ impl InputMethodHandle {
                 instance.object.activate();
                 if let Some(popup) = im.popup_handle.surface.as_mut() {
                     let data = instance.object.data::<InputMethodUserData<D>>().unwrap();
-                    let location = (data.popup_geometry_callback)(state, surface);
+                    let location = (data.parent_geometry)(state, surface);
                     // Remove old popup.
                     (data.dismiss_popup)(state, popup.clone());
 
@@ -164,7 +171,9 @@ impl InputMethodHandle {
 pub struct InputMethodUserData<D: SeatHandler> {
     pub(super) handle: InputMethodHandle,
     pub(crate) text_input_handle: TextInputHandle,
-    pub(crate) popup_geometry_callback: fn(&D, &WlSurface) -> Rectangle<i32, Logical>,
+    pub(crate) parent_geometry: fn(&D, &WlSurface) ->Rectangle<i32, Logical>,
+    /// Returns the position of the popup, given the cursor rectangle expressed in position relative to surface
+    pub(crate) popup_geometry_callback: fn(&D, &WlSurface, &Rectangle<i32, Logical>) -> Rectangle<i32, Logical>,
     pub(crate) new_popup: fn(&mut D, PopupSurface),
     pub(crate) popup_repositioned: fn(&mut D, PopupSurface),
     pub(crate) dismiss_popup: fn(&mut D, PopupSurface),
@@ -260,8 +269,7 @@ where
                         alive_tracker: AliveTracker::default(),
                     },
                 );
-                let popup_rect = Arc::new(Mutex::new(input_method.popup_handle.rectangle));
-                let popup = PopupSurface::new(instance, surface, popup_rect, parent);
+                let popup = PopupSurface::new(instance, surface, parent);
                 input_method.popup_handle.surface = Some(popup.clone());
                 if popup.get_parent().is_some() {
                     state.new_popup(popup);

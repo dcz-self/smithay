@@ -323,7 +323,9 @@ impl<BackendData: Backend> InputMethodHandler for AnvilState<BackendData> {
         }
     }
 
-    fn popup_repositioned(&mut self, _: PopupSurface) {}
+    fn popup_repositioned(&mut self, _: PopupSurface) {
+        
+    }
 
     fn dismiss_popup(&mut self, surface: PopupSurface) {
         if let Some(parent) = surface.get_parent().map(|parent| parent.surface.clone()) {
@@ -361,6 +363,14 @@ impl<BackendData: Backend> InputMethodHandlerV3 for AnvilState<BackendData> {
             .elements()
             .find_map(|window| (window.wl_surface().as_deref() == Some(parent)).then(|| window.geometry()))
             .unwrap_or_default()
+    }
+    
+    fn popup_geometry(&self, _parent: &WlSurface, cursor: &Rectangle<i32, Logical>) -> Rectangle<i32, Logical> {
+        Rectangle {
+            loc: Point::from((cursor.loc.x, cursor.loc.y + cursor.size.h)),
+            // FIXME: decide on the size of the popup
+            size: Size::default(),
+        }
     }
 }
 

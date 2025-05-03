@@ -314,7 +314,7 @@ where
 
                 if let Some(rect) = new_state.cursor_rectangle.take() {
                     data.input_method_handle
-                        .set_text_input_rectangle::<D>(state, rect);
+                        .set_cursor_rectangle::<D>(state, rect);
                 }
 
                 data.input_method_handle.with_instance(|input_method| {

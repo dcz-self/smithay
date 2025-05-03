@@ -106,7 +106,8 @@ impl PopupKind {
                 .loc
             }
             PopupKind::InputMethod(ref t) => t.location(),
-            PopupKind::InputMethodV3(ref t) => t.location(),
+            // Use (0,0) as the location for unmapped surfaces. Can't think of anything better. The only use in higher layers is to iterate over all popups, so maybe this is enough.
+            PopupKind::InputMethodV3(ref t) => t.location().unwrap_or(Point::from((0, 0))),
         }
     }
 }
