@@ -24,9 +24,8 @@ use smithay::{
     },
     utils::{Logical, Point, Serial, Transform, SERIAL_COUNTER as SCOUNTER},
     wayland::{
-        input_method::InputMethodSeat,
-        keyboard_shortcuts_inhibit::KeyboardShortcutsInhibitorSeat,
-        shell::wlr_layer::{KeyboardInteractivity, Layer as WlrLayer},
+        compositor::with_states, input_method::InputMethodSeat, keyboard_shortcuts_inhibit::KeyboardShortcutsInhibitorSeat, shell::wlr_layer::{KeyboardInteractivity, Layer as WlrLayer, LayerSurfaceCachedState}
+        ,
     },
 };
 
@@ -198,7 +197,7 @@ impl<BackendData: Backend> AnvilState<BackendData> {
                 // Additionally add the key to the suppressed keys
                 // so that we can decide on a release if the key
                 // should be forwarded to the client or not.
-                match state {
+                let action = match state {
                     KeyEvent::Pressed | KeyEvent::Repeated => {
                         let filter = if !inhibited {
                             let action = process_keyboard_shortcut(*modifiers, keysym);
@@ -229,7 +228,8 @@ impl<BackendData: Backend> AnvilState<BackendData> {
                             FilterResult::Forward
                         }
                     }
-                }
+                };
+                action
             })
             .unwrap_or(KeyAction::None);
 

@@ -1,7 +1,4 @@
-use std::{
-    fmt,
-    sync::{Arc, Mutex},
-};
+use std::{fmt, sync::{Arc, Mutex}};
 
 use tracing::warn;
 
@@ -15,17 +12,16 @@ use wayland_server::{backend::ClientId, protocol::wl_surface::WlSurface};
 use wayland_server::{Client, DataInit, Dispatch, DisplayHandle, Resource, WEnum};
 
 use crate::{
-    input::SeatHandler,
-    utils::{Logical, Rectangle},
-    wayland::{compositor, input_method_v3::text_input::TextInput, seat::WaylandFocus},
+    input::{keyboard::{KeyboardHandle, WlKeyboardApi}, Seat, SeatHandler}, utils::{Logical, Rectangle}, wayland::{compositor, keyboard_filter, seat::WaylandFocus, text_input::TextInputHandle}
+    ,
+    wayland::input_method_v3::text_input::TextInput,
 };
 
 use super::{
     conversions::ConvertInto,
-    input_method_popup_surface::{ImPopupLocation, PopupParent, PopupSurface},
-    positioner::{PositionerState, PositionerUserData},
+    input_method_popup_surface::{ImPopupLocation, PopupParent, PopupSurface}, positioner::{PositionerState, PositionerUserData}, InputMethodHandler, InputMethodManagerState, InputMethodPopupSurfaceUserData, INPUT_POPUP_SURFACE_ROLE
+    ,
     text_input::TextInputHandles,
-    InputMethodHandler, InputMethodManagerState, InputMethodPopupSurfaceUserData, INPUT_POPUP_SURFACE_ROLE,
 };
 
 /// Slot for an optional input method
@@ -36,14 +32,28 @@ pub(crate) struct MaybeInstance {
 }
 
 /// Contains input method state
-#[derive(Debug)]
 pub(crate) struct InputMethod {
     pub object: XxInputMethodV1,
     pub serial: u32,
     pub active: bool,
     pub popup_handles: Vec<PopupSurface>,
+    /// TODO: unused, previous experiment
+    pub keyboard_filter_handle: Arc<Mutex<Option<Box<dyn WlKeyboardApi + Send + Sync>>>>,
     /// Relative to surface on which input method is enabled
     pub cursor_rectangle: Rectangle<i32, Logical>,
+}
+
+impl fmt::Debug for InputMethod {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("InputMethod")
+            .field("object", &self.object)
+            .field("serial", &self.serial)
+            .field("active", &self.active)
+            .field("popup_handles", &self.popup_handles)
+            .field("filter", &"TODO")
+            .field("cursor_rectangle", &self.cursor_rectangle)
+            .finish()
+    }
 }
 
 impl InputMethod {
@@ -75,18 +85,23 @@ pub struct InputMethodHandle {
 
 impl InputMethodHandle {
     /// Assigns a new instance
-    pub(super) fn add_instance(&self, instance: &XxInputMethodV1) {
+    pub(super) fn add_instance<D: SeatHandler + 'static>(
+        &self,
+        instance: &XxInputMethodV1,
+    ) {
         let mut inner = self.inner.lock().unwrap();
         if let Some(instance) = inner.instance.as_mut() {
             instance.serial = 0;
             instance.object.unavailable();
         } else {
+            let data = instance.data::<InputMethodUserData<D>>().unwrap();
             inner.instance = Some(InputMethod {
                 object: instance.clone(),
                 serial: 0,
                 active: false,
                 popup_handles: vec![],
                 cursor_rectangle: Rectangle::default(),
+                keyboard_filter_handle: data.keyboard_handle.arc.known_kbds.interceptor.clone(),
             });
         }
     }
@@ -149,9 +164,20 @@ impl InputMethodHandle {
     }
 
     /// Activate input method on the given surface.
-    pub(crate) fn activate_input_method<D: SeatHandler + 'static>(&self, _: &mut D, _surface: &WlSurface) {
+    pub(crate) fn activate_input_method<D: SeatHandler + 'static>(&self, state: &mut D, surface: &WlSurface) {
         self.with_instance(|im| {
             im.object.activate();
+            let data = im.object.data::<InputMethodUserData<D>>().unwrap();
+            //let known_kbds = &data.keyboard_handle.arc.known_kbds;
+            let filter = data.keyboard_filter.lock().unwrap();
+            if let Some(keyboard_filter) = filter.as_ref() {
+                keyboard_filter.activate_grab(
+                    state,
+                    &data.seat,
+//                    &known_kbds.keyboards,
+//                    surface,
+                );
+            }
             im.active = true;
         });
     }
@@ -168,6 +194,13 @@ impl InputMethodHandle {
             for popup in im.popup_handles.drain(..) {
                 (data.dismiss_popup)(state, popup.clone());
             }
+
+            let known_kbds = &data.keyboard_handle.arc.known_kbds;
+            {
+                let mut interceptor = known_kbds.interceptor.lock().unwrap();
+                *interceptor = None;
+            }
+            im.keyboard_filter_handle = Arc::new(Mutex::new(None));
         });
     }
 }
@@ -175,8 +208,14 @@ impl InputMethodHandle {
 /// User data of XxInputMethodV1 object
 #[derive(Clone)]
 pub struct InputMethodUserData<D: SeatHandler> {
+    pub(crate) seat: Seat<D>,
     pub(super) handle: InputMethodHandle,
     pub(crate) text_input_handles: TextInputHandles,
+    /// Handle to main keyboard for registering sub-keyboards
+    pub(crate) keyboard_handle: KeyboardHandle<D>,
+    /// Currently bound filter. This is this IM instance's "master copy" to be cloned into KeyFilter instances.
+    /// KeyFilter shall not outlive its input method, so that's fine.
+    pub(crate) keyboard_filter: Arc<Mutex<Option<keyboard_filter::Filter<D>>>>,
     /// This is just a copy from Input MethodHandler. It's here in order to break the requirement for D: InputMethodHandler on functions that call dismiss_popup. That means other modules don't have to explicitly put D: InputMethodHandler when they call something that ends up calling this.
     /// (Not sure what the purpose of that is, but it seems consistent...)
     pub(crate) popup_geometry:
@@ -197,6 +236,7 @@ impl<D: SeatHandler> fmt::Debug for InputMethodUserData<D> {
 impl<D> Dispatch<XxInputMethodV1, InputMethodUserData<D>, D> for InputMethodManagerState
 where
     D: Dispatch<XxInputMethodV1, InputMethodUserData<D>>,
+    //D: Dispatch<XxInputMethodKeyboardV1, KeyboardUserData<D>>,
     D: Dispatch<XxInputPopupSurfaceV2, InputMethodPopupSurfaceUserData>,
     D: SeatHandler,
     D: InputMethodHandler,
@@ -359,6 +399,8 @@ where
         data: &InputMethodUserData<D>,
     ) {
         data.handle.inner.lock().unwrap().instance = None;
+        let keyboards = &data.keyboard_handle.arc.known_kbds;
+        keyboards.clear_interceptor();
         data.text_input_handles.leave();
     }
 }

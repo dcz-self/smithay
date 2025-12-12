@@ -1,7 +1,6 @@
 use std::cmp::PartialEq;
 use std::sync::{Arc, Mutex};
 
-//use wl_input_method as wayland_protocols_experimental;
 use wayland_protocols_experimental::input_method::v1::server::xx_input_method_v1::XxInputMethodV1;
 use wayland_protocols_experimental::input_method::v1::server::xx_input_popup_surface_v2::{
     self, XxInputPopupSurfaceV2,

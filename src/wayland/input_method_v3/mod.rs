@@ -73,7 +73,6 @@ use wayland_server::{
     GlobalDispatch, New,
 };
 
-//use wl_input_method as wayland_protocols_experimental;
 use wayland_protocols_experimental::input_method::v1::{
     server::xx_input_popup_positioner_v1::XxInputPopupPositionerV1,
     server::{
@@ -254,14 +253,17 @@ where
                 let instance = data_init.init(
                     input_method,
                     InputMethodUserData {
+                        seat: seat.clone(),
                         handle: handle.clone(),
                         text_input_handles,
+                        keyboard_handle: seat.get_keyboard().unwrap(),
+                        keyboard_filter: Default::default(),
                         dismiss_popup: D::dismiss_popup,
                         popup_geometry: D::popup_geometry,
                         popup_repositioned: D::popup_repositioned,
                     },
                 );
-                handle.add_instance(&instance);
+                handle.add_instance::<D>(&instance);
             }
             xx_input_method_manager_v2::Request::GetPositioner { id } => {
                 data_init.init(id, PositionerUserData::default());
@@ -298,4 +300,99 @@ macro_rules! delegate_input_method_manager_v3 {
             $crate::wayland::input_method_v3::PositionerUserData
         ] => $crate::wayland::input_method_v3::InputMethodManagerState);
     };
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use wl_input_method::input_method::v1::server as protocol;
+
+    struct Handler {}
+
+    impl InputMethodHandler for Handler {
+        fn new_popup(&mut self, _surface: PopupSurface) {
+        }
+        fn dismiss_popup(&mut self, _surface: PopupSurface) {
+        }
+        fn popup_repositioned(&mut self, _surface: PopupSurface) {
+        }
+        fn popup_geometry(
+            &self,
+            _parent: &WlSurface,
+            _cursor: &Rectangle<i32, Logical>,
+            _positioner: &PositionerState,
+        ) -> Rectangle<i32, Logical> {
+            unreachable!("Test code not meant to be executed");
+        }
+        fn parent_geometry(&self, _parent: &WlSurface) -> Rectangle<i32, Logical> {
+            unreachable!("Test code not meant to be executed");
+        }
+        fn popup_ack_configure(
+            &mut self,
+            _surface: &WlSurface,
+            _serial: Serial,
+            _client_state: PopupSurfaceState,
+        ) {
+        }
+    }
+    
+    impl SeatHandler for Handler {
+        type KeyboardFocus = WlSurface;
+        type PointerFocus = WlSurface;
+        type TouchFocus = WlSurface;
+        fn seat_state(&mut self) -> &mut crate::input::SeatState<Self> {
+            unreachable!("Test code not meant to be executed");
+        }
+        fn focus_changed(&mut self, _seat: &Seat<Self>, _focused: Option<&Self::KeyboardFocus>) {
+        }
+        fn cursor_image(&mut self, _seat: &Seat<Self>, _image: crate::input::pointer::CursorImageStatus) {
+        }
+        fn led_state_changed(&mut self, _seat: &Seat<Self>, _led_state: crate::input::keyboard::LedState) {
+        }
+    }
+
+    delegate_input_method_manager_v3!(Handler);
+
+    fn assert_is_manager_delegate<T>()
+    where
+        T: wayland_server::Dispatch<
+            protocol::xx_input_method_manager_v2::XxInputMethodManagerV2,
+            (),
+        >,
+    {
+    }
+
+    fn assert_is_delegate<T>()
+    where
+        T: SeatHandler,
+        T: wayland_server::Dispatch<protocol::xx_input_method_v1::XxInputMethodV1, InputMethodUserData<T>>,
+    {
+    }
+
+    fn assert_is_popup_delegate<T>()
+    where
+        T: wayland_server::Dispatch<
+            protocol::xx_input_popup_surface_v2::XxInputPopupSurfaceV2,
+            InputMethodPopupSurfaceUserData,
+        >,
+    {
+    }
+
+    fn assert_is_positioner_delegate<T>()
+    where
+        T: wayland_server::Dispatch<
+            protocol::xx_input_popup_positioner_v1::XxInputPopupPositionerV1,
+            PositionerUserData,
+        >,
+    {
+    }
+
+    #[test]
+    fn test_valid_assignment() {
+        assert_is_manager_delegate::<Handler>();
+        assert_is_delegate::<Handler>();
+        assert_is_popup_delegate::<Handler>();
+        assert_is_positioner_delegate::<Handler>();
+    }
 }
