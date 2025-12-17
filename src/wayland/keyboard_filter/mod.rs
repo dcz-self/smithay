@@ -194,14 +194,14 @@ where
 macro_rules! delegate_keyboard_filter_manager_v1 {
     ($(@<$( $lt:tt $( : $clt:tt $(+ $dlt:tt )* )? ),+>)? $ty: ty) => {
         $crate::reexports::wayland_server::delegate_global_dispatch!($(@< $( $lt $( : $clt $(+ $dlt )* )? ),+ >)? $ty: [
-            $crate::reexports::wayland_protocols_experimental::keyboard_filter::v1::server::xx_keyboard_filter_manager_v1::XxKeyboardFilterManagerV1:
+            $crate::reexports::wayland_protocols_experimental::keyboard_filter::v3::server::xx_keyboard_filter_manager_v1::XxKeyboardFilterManagerV1:
             $crate::wayland::keyboard_filter::KeyboardFilterManagerGlobalData
         ] => $crate::wayland::keyboard_filter::KeyboardFilterManagerState);
         $crate::reexports::wayland_server::delegate_dispatch!($(@< $( $lt $( : $clt $(+ $dlt )* )? ),+ >)? $ty: [
-            $crate::reexports::wayland_protocols_experimental::keyboard_filter::v1::server::xx_keyboard_filter_manager_v1::XxKeyboardFilterManagerV1: $crate::wayland::keyboard_filter::KeyboardFilterManagerUserData
+            $crate::reexports::wayland_protocols_experimental::keyboard_filter::v3::server::xx_keyboard_filter_manager_v1::XxKeyboardFilterManagerV1: $crate::wayland::keyboard_filter::KeyboardFilterManagerUserData
         ] => $crate::wayland::keyboard_filter::KeyboardFilterManagerState);
         $crate::reexports::wayland_server::delegate_dispatch!($(@< $( $lt $( : $clt $(+ $dlt )* )? ),+ >)? $ty: [
-            $crate::reexports::wayland_protocols_experimental::keyboard_filter::v1::server::xx_keyboard_filter_v1::XxKeyboardFilterV1: $crate::wayland::keyboard_filter::KeyboardFilterUserData<Self>
+            $crate::reexports::wayland_protocols_experimental::keyboard_filter::v3::server::xx_keyboard_filter_v1::XxKeyboardFilterV1: $crate::wayland::keyboard_filter::KeyboardFilterUserData<Self>
         ] => $crate::wayland::keyboard_filter::KeyboardFilterManagerState);
     }
 }
