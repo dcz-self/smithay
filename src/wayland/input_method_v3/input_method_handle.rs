@@ -3,7 +3,7 @@ use std::{fmt, sync::{Arc, Mutex}};
 use tracing::warn;
 
 //use wl_input_method as wayland_protocols_experimental;
-use wayland_protocols_experimental::text_input::v3::server::xx_text_input_v3::{ChangeCause, ContentHint, ContentPurpose};
+use wayland_protocols_experimental::{input_method::v1::server::xx_input_method_v1::ProtocolCompat, text_input::v3::server::xx_text_input_v3::{ChangeCause, ContentHint, ContentPurpose}};
 use wayland_protocols_experimental::input_method::v1::server::{
     xx_input_method_v1::{self, XxInputMethodV1},
     xx_input_popup_surface_v2::XxInputPopupSurfaceV2,
@@ -164,9 +164,10 @@ impl InputMethodHandle {
     }
 
     /// Activate input method on the given surface.
-    pub(crate) fn activate_input_method<D: SeatHandler + 'static>(&self, state: &mut D, surface: &WlSurface) {
+    pub(crate) fn activate_input_method<D: SeatHandler + 'static>(&self, state: &mut D, surface: &WlSurface, protocol_version: ProtocolCompat) {
         self.with_instance(|im| {
             im.object.activate();
+            im.object.announce_protocol_compat(protocol_version);
             let data = im.object.data::<InputMethodUserData<D>>().unwrap();
             //let known_kbds = &data.keyboard_handle.arc.known_kbds;
             let filter = data.keyboard_filter.lock().unwrap();

@@ -86,7 +86,7 @@ use crate::{
     utils::{Logical, Rectangle, Serial}, wayland::{text_input as text_input_v3, text_input_next},
 };
 
-const MANAGER_VERSION: u32 = 3;
+const MANAGER_VERSION: u32 = 4;
 
 /// The role of the input method popup.
 pub const INPUT_POPUP_SURFACE_ROLE: &str = "zwp_input_popup_surface_v3";

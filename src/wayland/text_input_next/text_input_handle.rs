@@ -2,6 +2,7 @@ use std::mem;
 use std::sync::{Arc, Mutex};
 
 use tracing::{debug, warn};
+use wayland_protocols_experimental::input_method::v1::server::xx_input_method_v1::ProtocolCompat;
 //use wl_input_method as wayland_protocols_experimental;
 use wayland_protocols_experimental::text_input::v3::server::xx_text_input_v3::{
     self, ChangeCause, ContentHint, ContentPurpose, SupportedFeatures, XxTextInputV3,
@@ -299,7 +300,7 @@ where
                         // Drop the guard before calling to other subsystem.
                         drop(guard);
                         data.input_method_handle.activate_input_method(state, &focus);
-                        data.input_method_v3_handle.activate_input_method(state, &focus);
+                        data.input_method_v3_handle.activate_input_method(state, &focus, ProtocolCompat::XxTextInput);
                     }
                     Some(false) => {
                         *active_text_input_id = None;
