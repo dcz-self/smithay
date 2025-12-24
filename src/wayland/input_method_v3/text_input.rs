@@ -39,9 +39,9 @@ impl TextInputHandles {
         self.v3.focus().or_else(|| self.xx.focus())
     }
 
-    pub fn done(&self, discard_state: bool) {
+    pub fn done(&self, discard_state: bool, serial: u32) {
         if !self.v3.done(discard_state) {
-            self.xx.done(discard_state);
+            self.xx.done(serial);
         }
     }
 

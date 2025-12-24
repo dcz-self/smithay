@@ -12,7 +12,7 @@ use wayland_server::{backend::ClientId, protocol::wl_surface::WlSurface};
 use wayland_server::{Client, DataInit, Dispatch, DisplayHandle, Resource, WEnum};
 
 use crate::{
-    input::{keyboard::{KeyboardHandle, WlKeyboardApi}, Seat, SeatHandler}, utils::{Logical, Rectangle}, wayland::{compositor, keyboard_filter, seat::WaylandFocus, text_input::TextInputHandle}
+    input::{keyboard::{KeyboardHandle, WlKeyboardApi}, Seat, SeatHandler}, utils::{Logical, Rectangle}, wayland::{compositor, keyboard_filter, seat::WaylandFocus}
     ,
     wayland::input_method_v3::text_input::TextInput,
 };
@@ -34,8 +34,15 @@ pub(crate) struct MaybeInstance {
 /// Contains input method state
 pub(crate) struct InputMethod {
     pub object: XxInputMethodV1,
-    pub serial: u32,
-    pub active: bool,
+    /// Number of issued .activate events for xx-text-input semantics.
+    ///
+    /// Together with activates_when_entered, this helps translate serial number values.
+    /// Serials can't be used directly because the lifetimes of text input and input method objects are independent.
+    pub activate_count: usize,
+    /// Stores the value of the above when text input entered the last surface.
+    pub activates_when_entered: usize,
+    /// Currently active protocol version, or None
+    pub(crate) active: Option<ProtocolCompat>,
     pub popup_handles: Vec<PopupSurface>,
     /// TODO: unused, previous experiment
     pub keyboard_filter_handle: Arc<Mutex<Option<Box<dyn WlKeyboardApi + Send + Sync>>>>,
@@ -47,7 +54,8 @@ impl fmt::Debug for InputMethod {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("InputMethod")
             .field("object", &self.object)
-            .field("serial", &self.serial)
+            .field("activate_count", &self.activate_count)
+            .field("activates_when_entered", &self.activates_when_entered)
             .field("active", &self.active)
             .field("popup_handles", &self.popup_handles)
             .field("filter", &"TODO")
@@ -69,10 +77,14 @@ impl InputMethod {
         self.object.content_type(hint.convert_into(), purpose.convert_into())
     }
 
-    /// Send the done incrementing the serial.
     pub(crate) fn done(&mut self) {
         self.object.done();
-        self.serial += 1;
+    }
+    
+    /// Used for tracking serials
+    pub(crate) fn notify_new_surface(&mut self) {
+        self.object.done();
+        self.activates_when_entered = self.activate_count;
     }
 }
 
@@ -91,14 +103,15 @@ impl InputMethodHandle {
     ) {
         let mut inner = self.inner.lock().unwrap();
         if let Some(instance) = inner.instance.as_mut() {
-            instance.serial = 0;
+            instance.activate_count = 0;
             instance.object.unavailable();
         } else {
             let data = instance.data::<InputMethodUserData<D>>().unwrap();
             inner.instance = Some(InputMethod {
                 object: instance.clone(),
-                serial: 0,
-                active: false,
+                activate_count: 0,
+                activates_when_entered: 0,
+                active: None,
                 popup_handles: vec![],
                 cursor_rectangle: Rectangle::default(),
                 keyboard_filter_handle: data.keyboard_handle.arc.known_kbds.interceptor.clone(),
@@ -111,15 +124,14 @@ impl InputMethodHandle {
         self.inner.lock().unwrap().instance.is_some()
     }
 
-    /// Callback function to access the input method object
-    pub(crate) fn with_instance<F>(&self, f: F)
+    /// Callback function to access the input method object.
+    /// Returns None if the instace doesn't exist
+    pub(crate) fn with_instance<F>(&self, f: F) -> Option<()>
     where
         F: FnOnce(&mut InputMethod),
     {
         let mut inner = self.inner.lock().unwrap();
-        if let Some(instance) = inner.instance.as_mut() {
-            f(instance);
-        }
+        inner.instance.as_mut().map(f)
     }
 
     pub(crate) fn set_cursor_rectangle<D: SeatHandler + 'static>(
@@ -168,7 +180,8 @@ impl InputMethodHandle {
         self.with_instance(|im| {
             im.object.activate();
             im.object.announce_protocol_compat(protocol_version);
-            let data = im.object.data::<InputMethodUserData<D>>().unwrap();
+            let mut data = im.object.data::<InputMethodUserData<D>>().unwrap();
+            im.active = Some(protocol_version);
             //let known_kbds = &data.keyboard_handle.arc.known_kbds;
             let filter = data.keyboard_filter.lock().unwrap();
             if let Some(keyboard_filter) = filter.as_ref() {
@@ -179,7 +192,6 @@ impl InputMethodHandle {
 //                    surface,
                 );
             }
-            im.active = true;
         });
     }
 
@@ -190,7 +202,7 @@ impl InputMethodHandle {
         self.with_instance(|im| {
             im.object.deactivate();
             im.done();
-            im.active = false;
+            im.active = None;
             let data = im.object.data::<InputMethodUserData<D>>().unwrap();
             for popup in im.popup_handles.drain(..) {
                 (data.dismiss_popup)(state, popup.clone());
@@ -306,17 +318,23 @@ where
                 });
             }
             Request::Commit { serial } => {
-                let current_serial = data
+                let serial = data
                     .handle
                     .inner
                     .lock()
                     .unwrap()
                     .instance
                     .as_ref()
-                    .map(|i| i.serial)
-                    .unwrap_or(0);
+                    .map(|i| {
+                        if let Some(ProtocolCompat::XxTextInput) = i.active {
+                            serial - i.activates_when_entered as u32
+                        } else {
+                            serial
+                        }
+                    })
+                    .unwrap_or(serial);
 
-                data.text_input_handles.done(serial != current_serial);
+                data.text_input_handles.done(true, serial);
             }
             Request::GetInputPopupSurface {
                 id,
@@ -325,7 +343,7 @@ where
             } => {
                 let mut input_method = data.handle.inner.lock().unwrap();
                 if let Some(instance) = &mut input_method.instance {
-                    if instance.active {
+                    if instance.active.is_some() {
                         if compositor::give_role(&surface, INPUT_POPUP_SURFACE_ROLE).is_err()
                             && compositor::get_role(&surface) != Some(INPUT_POPUP_SURFACE_ROLE)
                         {

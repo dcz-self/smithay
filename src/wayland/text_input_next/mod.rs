@@ -168,7 +168,7 @@ where
                 if input_method_handle.has_instance() {
                     handle.enter();
                 }
-                if input_method_v3_handle.has_instance() {
+                if let Some(()) = input_method_v3_handle.with_instance(|instance| instance.notify_new_surface()) {
                     handle.enter();
                 }
             }

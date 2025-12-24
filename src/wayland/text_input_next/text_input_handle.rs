@@ -27,13 +27,13 @@ pub(crate) struct TextInput {
 impl TextInput {
     fn with_focused_client_all_text_inputs<F>(&mut self, mut f: F)
     where
-        F: FnMut(&XxTextInputV3, &WlSurface, u32),
+        F: FnMut(&XxTextInputV3, &WlSurface),
     {
         if let Some(surface) = dbg!(self.focus.as_ref()).filter(|surface| dbg!(surface.is_alive())) {
             for text_input in self.instances.iter() {
                 let instance_id = text_input.instance.id();
                 if instance_id.same_client_as(&surface.id()) {
-                    f(&text_input.instance, surface, text_input.serial);
+                    f(&text_input.instance, surface);
                     break;
                 }
             }
@@ -42,7 +42,7 @@ impl TextInput {
 
     fn with_active_text_input<F>(&mut self, mut f: F)
     where
-        F: FnMut(&XxTextInputV3, &WlSurface, u32),
+        F: FnMut(&XxTextInputV3, &WlSurface),
     {
         let active_id = match &self.active_text_input_id {
             Some(active_text_input_id) => active_text_input_id,
@@ -61,7 +61,7 @@ impl TextInput {
             .filter(|instance| instance.instance.id().same_client_as(&surface_id))
             .find(|instance| &instance.instance.id() == active_id)
         {
-            f(&text_input.instance, surface, text_input.serial);
+            f(&text_input.instance, surface);
         }
     }
 }
@@ -77,11 +77,10 @@ impl TextInputHandle {
         let mut inner = self.inner.lock().unwrap();
         inner.instances.push(Instance {
             instance: instance.clone(),
-            serial: 0,
             pending_update: Default::default(),
         });
     }
-
+/*
     fn increment_serial(&self, text_input: &XxTextInputV3) {
         if let Some(instance) = self
             .inner
@@ -94,7 +93,7 @@ impl TextInputHandle {
             instance.serial += 1
         }
     }
-
+*/
     /// Return the currently focused surface.
     pub fn focus(&self) -> Option<WlSurface> {
         self.inner.lock().unwrap().focus.clone()
@@ -114,7 +113,7 @@ impl TextInputHandle {
         // Leaving clears the active text input.
         inner.active_text_input_id = None;
         // NOTE: we implement it in a symmetrical way with `enter`.
-        inner.with_focused_client_all_text_inputs(|text_input, focus, _| {
+        inner.with_focused_client_all_text_inputs(|text_input, focus| {
             text_input.leave(focus);
         });
     }
@@ -125,68 +124,38 @@ impl TextInputHandle {
         let mut inner = self.inner.lock().unwrap();
         // NOTE: protocol states that if we have multiple text inputs enabled, `enter` must
         // be send for each of them.
-        inner.with_focused_client_all_text_inputs(|text_input, focus, _| {
+        inner.with_focused_client_all_text_inputs(|text_input, focus| {
             text_input.enter(focus);
         });
     }
 
-    /// The `discard_state` is used when the input-method signaled that
-    /// the state should be discarded and wrong serial sent.
-    /// Returns `true` if event was sent
-    pub fn done(&self, discard_state: bool) -> bool {
+    /// Try sending the `done` event to the active text input, if any. Returns `true` iff sent.
+    pub fn done(&self, serial: u32) -> bool {
         let mut inner = self.inner.lock().unwrap();
         let mut sent = false;
-        inner.with_active_text_input(|text_input, _, serial| {
-            if discard_state {
-                debug!("discarding text-input state due to serial");
-                // Discarding is done by sending non-matching serial.
-                text_input.done(0);
-            } else {
-                text_input.done(serial);
-            };
+        inner.with_active_text_input(|text_input, _| {
+            text_input.done(serial);
             sent = true;
         });
         sent
     }
 
     /// Access the text-input instance for the currently focused surface.
-    pub fn with_focused_text_input<F>(&self, mut f: F)
+    pub fn with_focused_text_input<F>(&self, f: F)
     where
         F: FnMut(&XxTextInputV3, &WlSurface),
     {
         let mut inner = self.inner.lock().unwrap();
-        inner.with_focused_client_all_text_inputs(|ti, surface, _| {
-            f(ti, surface);
-        });
+        inner.with_focused_client_all_text_inputs(f);
     }
 
     /// Access the active text-input instance for the currently focused surface.
-    pub fn with_active_text_input<F>(&self, mut f: F)
+    pub fn with_active_text_input<F>(&self, f: F)
     where
         F: FnMut(&XxTextInputV3, &WlSurface),
     {
         let mut inner = self.inner.lock().unwrap();
-        inner.with_active_text_input(|ti, surface, _| {
-            f(ti, surface);
-        });
-    }
-
-    /// Call the callback with the serial of the active text_input or with the passed
-    /// `default` one when empty.
-    // TODO: only used in input method v2
-    pub(crate) fn active_text_input_serial_or_default<F>(&self, default: u32, mut callback: F)
-    where
-        F: FnMut(u32),
-    {
-        let mut inner = self.inner.lock().unwrap();
-        let mut should_default = true;
-        inner.with_active_text_input(|_, _, serial| {
-            should_default = false;
-            callback(serial);
-        });
-        if should_default {
-            callback(default)
-        }
+        inner.with_active_text_input(f);
     }
 }
 
@@ -213,11 +182,6 @@ where
         _dhandle: &wayland_server::DisplayHandle,
         _data_init: &mut wayland_server::DataInit<'_, D>,
     ) {
-        // Always increment serial to not desync with clients.
-        if matches!(request, xx_text_input_v3::Request::Commit) {
-            data.handle.increment_serial(resource);
-        }
-
         // Discard requests without any active input method instance.
         if !data.input_method_handle.has_instance() && !data.input_method_v3_handle.has_instance() {
             debug!("discarding text-input request without IME running");
@@ -410,7 +374,6 @@ where
 #[derive(Debug)]
 struct Instance {
     instance: XxTextInputV3,
-    serial: u32,
     pending_update: TextInputStateChange,
 }
 
