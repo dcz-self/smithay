@@ -29,7 +29,7 @@ impl TextInput {
     where
         F: FnMut(&XxTextInputV3, &WlSurface),
     {
-        if let Some(surface) = dbg!(self.focus.as_ref()).filter(|surface| dbg!(surface.is_alive())) {
+        if let Some(surface) = self.focus.as_ref().filter(|surface| surface.is_alive()) {
             for text_input in self.instances.iter() {
                 let instance_id = text_input.instance.id();
                 if instance_id.same_client_as(&surface.id()) {
@@ -80,20 +80,7 @@ impl TextInputHandle {
             pending_update: Default::default(),
         });
     }
-/*
-    fn increment_serial(&self, text_input: &XxTextInputV3) {
-        if let Some(instance) = self
-            .inner
-            .lock()
-            .unwrap()
-            .instances
-            .iter_mut()
-            .find(|instance| instance.instance == *text_input)
-        {
-            instance.serial += 1
-        }
-    }
-*/
+
     /// Return the currently focused surface.
     pub fn focus(&self) -> Option<WlSurface> {
         self.inner.lock().unwrap().focus.clone()
@@ -217,7 +204,7 @@ where
         };
 
         use xx_text_input_v3::Request::*;
-        match dbg!(request) {
+        match request {
             Enable => {
                 pending_update.enable = Some(true);
             }
@@ -253,7 +240,6 @@ where
                 let active_text_input_id = &mut guard.active_text_input_id;
 
                 if active_text_input_id.is_some() && *active_text_input_id != Some(resource.id()) {
-                    dbg!("exit");
                     debug!("discarding text_input request since we already have an active one");
                     return;
                 }
@@ -289,7 +275,6 @@ where
                     data.input_method_handle.with_instance(|input_method| {
                         input_method.object.surrounding_text(text.clone(), cursor, anchor)
                     });
-                    dbg!("surround");
                     data.input_method_v3_handle.with_instance(move |input_method| {
                         dbg!("surround in");
                         input_method.object.surrounding_text(text, cursor, anchor)

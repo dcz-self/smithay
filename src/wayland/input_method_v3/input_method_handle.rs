@@ -84,7 +84,8 @@ impl InputMethod {
     /// Used for tracking serials
     pub(crate) fn notify_new_surface(&mut self) {
         self.object.done();
-        self.activates_when_entered = self.activate_count;
+        dbg!("entered");
+        self.activates_when_entered = dbg!(self.activate_count);
     }
 }
 
@@ -106,6 +107,7 @@ impl InputMethodHandle {
             instance.activate_count = 0;
             instance.object.unavailable();
         } else {
+            dbg!("add instane, reset");
             let data = instance.data::<InputMethodUserData<D>>().unwrap();
             inner.instance = Some(InputMethod {
                 object: instance.clone(),
@@ -179,6 +181,7 @@ impl InputMethodHandle {
     pub(crate) fn activate_input_method<D: SeatHandler + 'static>(&self, state: &mut D, surface: &WlSurface, protocol_version: ProtocolCompat) {
         self.with_instance(|im| {
             im.object.activate();
+            im.activate_count += 1;
             im.object.announce_protocol_compat(protocol_version);
             let mut data = im.object.data::<InputMethodUserData<D>>().unwrap();
             im.active = Some(protocol_version);
@@ -249,7 +252,6 @@ impl<D: SeatHandler> fmt::Debug for InputMethodUserData<D> {
 impl<D> Dispatch<XxInputMethodV1, InputMethodUserData<D>, D> for InputMethodManagerState
 where
     D: Dispatch<XxInputMethodV1, InputMethodUserData<D>>,
-    //D: Dispatch<XxInputMethodKeyboardV1, KeyboardUserData<D>>,
     D: Dispatch<XxInputPopupSurfaceV2, InputMethodPopupSurfaceUserData>,
     D: SeatHandler,
     D: InputMethodHandler,
@@ -318,6 +320,7 @@ where
                 });
             }
             Request::Commit { serial } => {
+                dbg!("commit");
                 let serial = data
                     .handle
                     .inner
@@ -327,7 +330,7 @@ where
                     .as_ref()
                     .map(|i| {
                         if let Some(ProtocolCompat::XxTextInput) = i.active {
-                            serial - i.activates_when_entered as u32
+                            dbg!(serial) - dbg!(i.activates_when_entered as u32)
                         } else {
                             serial
                         }
