@@ -3,7 +3,7 @@ use wayland_protocols::wp::text_input::zv3::server::zwp_text_input_v3::ZwpTextIn
 //use wl_input_method as wayland_protocols_experimental;
 use wayland_protocols_experimental::text_input::v3::server::xx_text_input_v3::XxTextInputV3;
 
-use crate::wayland::{text_input, text_input_next};
+use crate::{utils::user_data::UserDataMap, wayland::{input_method_v3, text_input, text_input_next}};
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct TextInputHandles {
@@ -18,6 +18,16 @@ impl TextInputHandles {
     ) -> Self {
         Self { v3, xx }
     }
+    
+    pub fn new_from_seat(user_data: &UserDataMap) -> Self {
+        let text_input_v3_handle = user_data.get::<text_input::TextInputHandle>().unwrap();
+        let text_input_next_handle = user_data.get::<text_input_next::TextInputHandle>().unwrap();
+        TextInputHandles::new(
+            text_input_v3_handle.clone(),
+            text_input_next_handle.clone(),
+        )
+    }
+    
     /// Access the active text-input instance for the currently focused surface.
     pub fn with_active_text_input<F>(&self, mut f: F)
     where
@@ -45,10 +55,11 @@ impl TextInputHandles {
         }
     }
 
-    pub fn enter(&self) {
+    pub fn enter(&self, imv3: &input_method_v3::InputMethodHandle) {
         // Enter internally broadcasts to all instances
         self.v3.enter();
         self.xx.enter();
+        imv3.with_instance(|instance| instance.notify_new_surface());
     }
     
     pub fn leave(&self) {

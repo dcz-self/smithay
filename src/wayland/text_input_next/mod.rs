@@ -58,7 +58,7 @@ use wayland_protocols_experimental::text_input::v3::server::{
 };
 use wayland_server::{backend::GlobalId, Client, DataInit, Dispatch, DisplayHandle, GlobalDispatch, New};
 
-use crate::input::{Seat, SeatHandler};
+use crate::{input::{Seat, SeatHandler}, wayland::input_method_v3::TextInputHandles};
 
 pub use text_input_handle::TextInputHandle;
 pub use text_input_handle::TextInputUserData;
@@ -165,11 +165,9 @@ where
                     },
                 );
                 handle.add_instance(&instance);
-                if input_method_handle.has_instance() {
-                    handle.enter();
-                }
-                if let Some(()) = input_method_v3_handle.with_instance(|instance| instance.notify_new_surface()) {
-                    handle.enter();
+                if input_method_handle.has_instance() || input_method_v3_handle.has_instance() {
+                    TextInputHandles::new_from_seat(user_data)
+                        .enter(&input_method_v3_handle);
                 }
             }
             xx_text_input_manager_v3::Request::Destroy => {

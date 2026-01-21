@@ -86,6 +86,7 @@ use crate::{
     utils::{Logical, Rectangle, Serial}, wayland::{text_input as text_input_v3, text_input_next},
 };
 
+
 const MANAGER_VERSION: u32 = 4;
 
 /// The role of the input method popup.
@@ -104,7 +105,9 @@ pub use input_method_popup_surface::{
     InputMethodPopupSurfaceUserData, PopupParent, PopupSurface, PopupSurfaceState,
 };
 pub use positioner::{PositionerState, PositionerUserData};
-use text_input::TextInputHandles;
+
+// FIXME: promote to generic text input abstraction because it's needed in seat/keyboard for entering surfaces
+pub(crate) use text_input::TextInputHandles;
 
 /// Adds input method popup to compositor state
 pub trait InputMethodHandler {
@@ -244,12 +247,13 @@ where
                 user_data.insert_if_missing(text_input_next::TextInputHandle::default);
                 user_data.insert_if_missing(InputMethodHandle::default);
                 let handle = user_data.get::<InputMethodHandle>().unwrap();
-                let text_input_v3_handle = user_data.get::<text_input_v3::TextInputHandle>().unwrap();let text_input_next_handle = user_data.get::<text_input_next::TextInputHandle>().unwrap();
+                let text_input_v3_handle = user_data.get::<text_input_v3::TextInputHandle>().unwrap();
+                let text_input_next_handle = user_data.get::<text_input_next::TextInputHandle>().unwrap();
                 let text_input_handles = TextInputHandles::new(
                     text_input_v3_handle.clone(),
                     text_input_next_handle.clone(),
                 );
-                text_input_handles.enter();
+                text_input_handles.enter(&handle);
                 let instance = data_init.init(
                     input_method,
                     InputMethodUserData {

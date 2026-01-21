@@ -107,6 +107,7 @@ impl TextInputHandle {
 
     /// Send `enter` on the text-input instance for the currently focused
     /// surface.
+    /// `imv3` executes special input method handlers
     pub fn enter(&self) {
         let mut inner = self.inner.lock().unwrap();
         // NOTE: protocol states that if we have multiple text inputs enabled, `enter` must
