@@ -16,11 +16,11 @@ use crate::{
     input::{
         Seat, SeatHandler, SeatState, WeakSeat, keyboard::{KeyboardHandle, KeyboardTarget, KeyboardTargetSimple, KeysymHandle, ModifiersState, WlKeyboardApi}
     },
-    utils::{HookId, Serial, iter::new_locked_obj_iter_from_vec},
+    utils::{iter::new_locked_obj_iter_from_vec, HookId, Serial},
     wayland::{
         compositor::{add_destruction_hook, remove_destruction_hook, with_states},
         input_method::InputMethodSeat,
-        input_method_v3::{InputMethodSeat as _, TextInputHandles},
+        input_method_v3::InputMethodSeat as _,
         text_input::TextInputSeat, text_input_next::TextInputSeat as _,
     },
 };
@@ -269,8 +269,8 @@ pub(crate) fn enter_internal<D: SeatHandler + 'static>(
 
     // Only notify on `enter` once we have an actual IME.
     if input_method.has_instance() || input_method_v3.has_instance() {
-        TextInputHandles::new(text_input.clone(), text_input_next.clone())
-            .enter(&input_method_v3);
+        text_input.enter();
+        text_input_next.enter();
     }
 }
 

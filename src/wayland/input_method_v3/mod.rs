@@ -105,9 +105,7 @@ pub use input_method_popup_surface::{
     InputMethodPopupSurfaceUserData, PopupParent, PopupSurface, PopupSurfaceState,
 };
 pub use positioner::{PositionerState, PositionerUserData};
-
-// FIXME: promote to generic text input abstraction because it's needed in seat/keyboard for entering surfaces
-pub(crate) use text_input::TextInputHandles;
+use text_input::TextInputHandles;
 
 /// Adds input method popup to compositor state
 pub trait InputMethodHandler {
@@ -253,7 +251,7 @@ where
                     text_input_v3_handle.clone(),
                     text_input_next_handle.clone(),
                 );
-                text_input_handles.enter(&handle);
+                text_input_handles.enter();
                 let instance = data_init.init(
                     input_method,
                     InputMethodUserData {

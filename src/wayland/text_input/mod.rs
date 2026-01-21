@@ -57,7 +57,7 @@ use wayland_protocols::wp::text_input::zv3::server::{
 };
 use wayland_server::{backend::GlobalId, Client, DataInit, Dispatch, DisplayHandle, GlobalDispatch, New};
 
-use crate::{input::{Seat, SeatHandler}, wayland::input_method_v3::TextInputHandles};
+use crate::input::{Seat, SeatHandler};
 
 pub use text_input_handle::TextInputHandle;
 pub use text_input_handle::TextInputUserData;
@@ -165,8 +165,7 @@ where
                 );
                 handle.add_instance(&instance);
                 if input_method_handle.has_instance() || input_method_v3_handle.has_instance() {
-                    TextInputHandles::new_from_seat(user_data)
-                        .enter(&input_method_v3_handle);
+                    handle.enter();
                 }
             }
             zwp_text_input_manager_v3::Request::Destroy => {

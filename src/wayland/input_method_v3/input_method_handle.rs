@@ -34,13 +34,6 @@ pub(crate) struct MaybeInstance {
 /// Contains input method state
 pub(crate) struct InputMethod {
     pub object: XxInputMethodV1,
-    /// Number of issued .activate events for xx-text-input semantics.
-    ///
-    /// Together with activates_when_entered, this helps translate serial number values.
-    /// Serials can't be used directly because the lifetimes of text input and input method objects are independent.
-    pub activate_count_xx: usize,
-    /// Stores the value of the above when text input entered the last surface.
-    pub activates_when_entered: usize,
     /// Currently active protocol version, or None
     pub(crate) active: Option<ProtocolCompat>,
     pub popup_handles: Vec<PopupSurface>,
@@ -54,8 +47,6 @@ impl fmt::Debug for InputMethod {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("InputMethod")
             .field("object", &self.object)
-            .field("activate_count_xx", &self.activate_count_xx)
-            .field("activates_when_entered", &self.activates_when_entered)
             .field("active", &self.active)
             .field("popup_handles", &self.popup_handles)
             .field("filter", &"TODO")
@@ -80,12 +71,6 @@ impl InputMethod {
     pub(crate) fn done(&mut self) {
         self.object.done();
     }
-    
-    /// Used for tracking serials
-    pub(crate) fn notify_new_surface(&mut self) {
-        dbg!("entered");
-        self.activates_when_entered = dbg!(self.activate_count_xx);
-    }
 }
 
 /// Handle to a possible input method instance.
@@ -105,12 +90,9 @@ impl InputMethodHandle {
         if let Some(instance) = inner.instance.as_mut() {
             instance.object.unavailable();
         } else {
-            dbg!("input method New handle");
             let data = instance.data::<InputMethodUserData<D>>().unwrap();
             inner.instance = Some(InputMethod {
                 object: instance.clone(),
-                activate_count_xx: 0,
-                activates_when_entered: 0,
                 active: None,
                 popup_handles: vec![],
                 cursor_rectangle: Rectangle::default(),
@@ -179,10 +161,6 @@ impl InputMethodHandle {
     pub(crate) fn activate_input_method<D: SeatHandler + 'static>(&self, state: &mut D, surface: &WlSurface, protocol_version: ProtocolCompat) {
         self.with_instance(|im| {
             im.object.activate();
-            im.activate_count_xx += match protocol_version {
-                ProtocolCompat::XxTextInput => true,
-                _ => false,
-            } as usize;
             im.object.announce_protocol_compat(protocol_version);
             let data = im.object.data::<InputMethodUserData<D>>().unwrap();
             im.active = Some(protocol_version);
@@ -321,22 +299,6 @@ where
                 });
             }
             Request::Commit { serial } => {
-                dbg!("commit");
-                let serial = data
-                    .handle
-                    .inner
-                    .lock()
-                    .unwrap()
-                    .instance
-                    .as_ref()
-                    .map(|i| {
-                        if let Some(ProtocolCompat::XxTextInput) = i.active {
-                            dbg!(serial) - dbg!(i.activates_when_entered as u32)
-                        } else {
-                            serial
-                        }
-                    })
-                    .unwrap_or(serial);
 
                 data.text_input_handles.done(true, serial);
             }
